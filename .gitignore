@@ -1,0 +1,17 @@
+# Build outputs
+build/
+.gradle/
+out/
+
+# Never again
+*.zip
+
+# Claude Code local settings
+.claude/
+
+# OS / editor junk
+.DS_Store
+Thumbs.db
+.idea/
+*.iml
+.vscode/

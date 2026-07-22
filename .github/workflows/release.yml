@@ -1,0 +1,69 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - dir: mc1.21.5
+            mc: "1.21.5"
+            java: "21"
+          - dir: mc26.1.2
+            mc: "26.1.2"
+            java: "25"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.java }}
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build
+        working-directory: ${{ matrix.dir }}
+        run: ./gradlew build --no-daemon
+
+      - name: Collect release jar
+        working-directory: ${{ matrix.dir }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$GITHUB_WORKSPACE/out"
+          jar="$(find build/libs -maxdepth 1 -name '*.jar' \
+            ! -name '*-sources.jar' ! -name '*-dev.jar' -print -quit)"
+          if [ -z "$jar" ]; then
+            echo "No release jar found in build/libs" >&2
+            exit 1
+          fi
+          base="$(basename "$jar" .jar)"
+          cp "$jar" "$GITHUB_WORKSPACE/out/${base}-mc${{ matrix.mc }}.jar"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jar-${{ matrix.dir }}
+          path: out/*.jar
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: artifacts/*.jar

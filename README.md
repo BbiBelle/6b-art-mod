@@ -76,15 +76,25 @@ resolver downloads one, or install it yourself.
 
 ## Releasing
 
-1. Bump `version` in the relevant `build.gradle`(s) and `version` in the
-   matching `fabric.mod.json`(s). Keep both variants on the same mod version
-   unless you're intentionally shipping a fix to only one.
+Each Minecraft version is released **independently** — its own tag, its own
+GitHub Release, its own single jar. Tags are named `<folder>-v<version>`:
+
+- `mc1.21.5-v1.6.1`, `mc1.21.5-v1.6.2`, … for the `mc1.21.5/` build
+- `mc26.1.2-v1.6.1`, `mc26.1.2-v1.7.0`, … for the `mc26.1.2/` build
+
+The two variants don't need matching version numbers — bump only the one
+you're actually shipping.
+
+1. Bump `version` in that folder's `build.gradle` and its
+   `src/**/resources/fabric.mod.json`.
 2. Commit the version bump.
-3. Tag it and push the tag:
+3. Tag it (prefixed with the folder name) and push the tag:
    ```bash
-   git tag v1.6.2
-   git push origin v1.6.2
+   git tag mc1.21.5-v1.6.2
+   git push origin mc1.21.5-v1.6.2
    ```
-4. GitHub Actions (`.github/workflows/release.yml`) builds both variants and
-   publishes a GitHub Release for the tag with a jar per Minecraft version
-   attached automatically.
+4. GitHub Actions (`.github/workflows/release.yml`) reads the folder name off
+   the tag prefix, builds only that variant, and publishes a GitHub Release
+   for that tag with just its one jar attached — release notes are generated
+   from the commits touching that folder since its own last release, so
+   changes to the other variant never show up in the wrong changelog.

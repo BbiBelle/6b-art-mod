@@ -6,6 +6,13 @@ out/
 # Never again
 *.zip
 
+# Fabric/Loom dev run environment (./gradlew runClient). Not just build
+# clutter: it's where a locally-tested mod instance persists
+# config/maparts-link.token — a live upload credential for whatever account
+# was linked during testing (see TokenStore.java) — and must never end up in
+# a public commit.
+run/
+
 # Claude Code local settings
 .claude/
 
@@ -14,4 +21,10 @@ out/
 Thumbs.db
 .idea/
 *.iml
+*.ipr
+*.iws
 .vscode/
+*.launch
+.classpath
+.project
+.settings/

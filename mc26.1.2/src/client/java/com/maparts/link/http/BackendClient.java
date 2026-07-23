@@ -6,6 +6,7 @@ import com.google.gson.JsonParser;
 import com.google.gson.JsonSyntaxException;
 
 import java.net.URI;
+import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -14,6 +15,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 import com.maparts.link.capture.MapGridCapture;
@@ -22,19 +24,69 @@ public final class BackendClient {
     private static final Duration TIMEOUT = Duration.ofSeconds(10);
     private static final Duration UPLOAD_TIMEOUT = Duration.ofSeconds(60);
 
+    /**
+     * The only wording this client will ever show for a given backend error
+     * code — never the server's own message text. This is deliberate
+     * defense in depth: this mod is fully open-source and has no way to
+     * verify the server's wording stays generic on every future deploy, so
+     * decoupling from the literal text means a server-side change can never
+     * leak something more specific through this client by accident. Any
+     * code not listed here (including one the server hasn't been written
+     * yet to send) falls through to the generic default in errorMessage()
+     * below.
+     */
+    private static final Map<String, String> KNOWN_ERROR_MESSAGES = Map.ofEntries(
+            Map.entry("VALIDATION_ERROR", "Check your input and try again."),
+            Map.entry("CHALLENGE_NOT_FOUND", "Code not recognized. Request a new one on the website."),
+            Map.entry("CHALLENGE_USED", "This code has already been used."),
+            Map.entry("CHALLENGE_EXPIRED", "This code has expired. Request a new one on the website."),
+            Map.entry("CHALLENGE_STATE_CHANGED", "Could not complete. Request a new code."),
+            Map.entry("RATE_LIMITED", "Too many attempts. Please wait before trying again."),
+            Map.entry("UPLOADS_IN_GAME_ONLY", "Uploads happen in-game: look at your mapart wall and run /mapupload."),
+            Map.entry("STORAGE_NOT_CONFIGURED", "Image storage is not configured yet. Ask the site administrator."),
+            Map.entry("MC_IDENTITY_REQUIRED", "Link a Minecraft account before uploading maparts."),
+            Map.entry("UPLOAD_MISSING", "The image hasn't been uploaded yet."),
+            Map.entry("UPLOAD_TOO_LARGE", "Image is too large."),
+            Map.entry("INVALID_IMAGE", "The uploaded file is not a valid PNG, JPEG, or WebP image."),
+            Map.entry("MAPART_NOT_FOUND", "Mapart not found."),
+            Map.entry("MAPART_NOT_PROCESSING", "This mapart isn't awaiting processing."));
+
     private final HttpClient httpClient;
     private final String backendUrl;
 
     public BackendClient(String backendUrl) {
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(TIMEOUT)
-                .followRedirects(HttpClient.Redirect.NORMAL)
+                // Never follow redirects: the primary domain 301-redirects the
+                // old .vercel.app host, and a redirected POST silently
+                // downgrades to GET (dropping the body) per the HttpClient
+                // docs, which used to surface as a confusing 405. Refusing to
+                // follow means a backend-URL misconfiguration fails loudly
+                // (an unexpected-response error) instead of silently.
+                .followRedirects(HttpClient.Redirect.NEVER)
                 .build();
         this.backendUrl = backendUrl;
     }
 
+    /** passwordRequired/passwordSetupRequired are mutually exclusive and only
+     * meaningful when modToken is null. Passwords are mandatory for every
+     * account now, so verify never issues a credential directly anymore:
+     * passwordRequired means an existing password must be entered on the
+     * website; passwordSetupRequired means one must be created there (a new
+     * signup, or a legacy account that never set one). modToken coming back
+     * non-null here is a legacy-backend fallback kept only for safety — the
+     * current backend never takes this path. */
     public record VerifyResult(
-            boolean success, String message, boolean created, String mcName, String modToken) {}
+            boolean success, String message, boolean created, String mcName, String modToken,
+            boolean passwordRequired, boolean passwordSetupRequired) {}
+
+    /** Outcome of polling for the mod token after a verify with no modToken.
+     * status is "awaiting_password" (keep polling), "confirmed" (modToken is
+     * present — save it), "expired" (stop, tell the player to relink), or
+     * "error" (an explicit ok:false from the server, e.g. the code was never
+     * found — errorMessage carries the server's message and polling should
+     * stop, same as any other {"ok": false} response). */
+    public record TokenPollResult(String status, String modToken, String errorMessage) {}
 
     /** Draft outcome. owned means this exact image already existed on the
      * site (anyone's, any status) and the uploader was just added as an
@@ -78,7 +130,60 @@ public final class BackendClient {
                         "Could not reach the Maparts website. Please try again in a moment.",
                         false,
                         null,
-                        null));
+                        null,
+                        false,
+                        false));
+    }
+
+    /**
+     * Polls for the mod token after a verify that came back with no
+     * modToken — passwords are mandatory now, so that's every successful
+     * verify except the legacy-backend fallback. The mod only ever knows the
+     * code the player typed, never the challengeId the browser holds, so
+     * this looks the attempt up by code — same as verify itself. Call
+     * roughly every 2 seconds; give up after about 10 minutes (matching the
+     * challenge TTL the website enforces).
+     */
+    public CompletableFuture<TokenPollResult> pollChallengeToken(String code) {
+        String encodedCode = URLEncoder.encode(code, StandardCharsets.UTF_8);
+        HttpRequest request = jsonRequest("/api/auth/mc/challenge/token?code=" + encodedCode, null)
+                .GET()
+                .build();
+
+        return httpClient
+                .sendAsync(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8))
+                .thenApply(response -> {
+                    JsonObject json = parseJsonObject(response.body());
+
+                    if (json == null) {
+                        // A malformed/unexpected response shouldn't end the
+                        // wait early — the caller's own overall deadline is
+                        // what eventually gives up on a genuinely stuck
+                        // attempt. This is distinct from an explicit
+                        // {"ok": false} below, which DOES stop the poll.
+                        return new TokenPollResult("awaiting_password", null, null);
+                    }
+
+                    boolean ok = json.has("ok") && json.get("ok").getAsBoolean();
+
+                    if (ok && json.has("data")) {
+                        JsonObject data = json.getAsJsonObject("data");
+                        String status = data.has("status")
+                                ? data.get("status").getAsString()
+                                : "expired";
+                        String modToken = data.has("modToken") && !data.get("modToken").isJsonNull()
+                                ? data.get("modToken").getAsString()
+                                : null;
+                        return new TokenPollResult(status, modToken, null);
+                    }
+
+                    // An explicit {"ok": false} (e.g. 404 CHALLENGE_NOT_FOUND)
+                    // — stop polling and surface the server's own message
+                    // rather than retrying forever against a dead challenge.
+                    return new TokenPollResult(
+                            "error", null, errorMessage(json, response.statusCode()));
+                })
+                .exceptionally(error -> new TokenPollResult("awaiting_password", null, null));
     }
 
     /**
@@ -270,7 +375,7 @@ public final class BackendClient {
                 .uri(URI.create(backendUrl + path))
                 .timeout(TIMEOUT)
                 .header("Content-Type", "application/json")
-                .header("User-Agent", "maparts-link/1.6.1");
+                .header("User-Agent", "maparts-link/1.8.0");
 
         if (bearerToken != null) {
             builder.header("Authorization", "Bearer " + bearerToken);
@@ -297,12 +402,19 @@ public final class BackendClient {
         if (json != null && json.has("error")) {
             JsonObject error = json.getAsJsonObject("error");
 
-            if (error.has("message")) {
-                return error.get("message").getAsString();
+            if (error.has("code") && !error.get("code").isJsonNull()) {
+                String mapped = KNOWN_ERROR_MESSAGES.get(error.get("code").getAsString());
+
+                if (mapped != null) {
+                    return mapped;
+                }
             }
         }
 
-        return "Request failed (HTTP " + statusCode + ").";
+        // Deliberately never echoes the server's own message text, and
+        // never includes the raw status code either — see
+        // KNOWN_ERROR_MESSAGES above for why.
+        return "Request failed. Please try again.";
     }
 
     private static VerifyResult parseVerifyResponse(HttpResponse<String> response) {
@@ -315,7 +427,9 @@ public final class BackendClient {
                             + response.statusCode() + ").",
                     false,
                     null,
-                    null);
+                    null,
+                    false,
+                    false);
         }
 
         boolean ok = json.has("ok") && json.get("ok").getAsBoolean();
@@ -324,13 +438,18 @@ public final class BackendClient {
             JsonObject data = json.getAsJsonObject("data");
             boolean created = data.has("created") && data.get("created").getAsBoolean();
             String mcName = data.has("mcName") ? data.get("mcName").getAsString() : null;
-            String modToken = data.has("modToken") ? data.get("modToken").getAsString() : null;
-            return new VerifyResult(true, null, created, mcName, modToken);
+            String modToken = data.has("modToken") && !data.get("modToken").isJsonNull()
+                    ? data.get("modToken").getAsString()
+                    : null;
+            boolean passwordRequired = data.has("passwordRequired")
+                    && data.get("passwordRequired").getAsBoolean();
+            boolean passwordSetupRequired = data.has("passwordSetupRequired")
+                    && data.get("passwordSetupRequired").getAsBoolean();
+            return new VerifyResult(
+                    true, null, created, mcName, modToken, passwordRequired, passwordSetupRequired);
         }
 
-        return new VerifyResult(false, errorMessage(json, response.statusCode()), false, null, null);
+        return new VerifyResult(
+                false, errorMessage(json, response.statusCode()), false, null, null, false, false);
     }
 }
-
-
-

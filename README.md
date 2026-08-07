@@ -13,10 +13,14 @@ supported Minecraft version:
 
 | Folder | Minecraft version | Fabric Loader | Java |
 | --- | --- | --- | --- |
-| [`mc1.21.5/`](mc1.21.5) | 1.21.5 | ≥ 0.16.0 | 21 |
-| [`mc26.1.2/`](mc26.1.2) | 26.1.2 | ≥ 0.19.3 | 25 |
+| [`mc1.21.5/`](mc1.21.5) | 1.21.4+ | ≥ 0.16.0 | 21 |
+| [`mc26.1.2/`](mc26.1.2) | 26.1.2+ | ≥ 0.16.0 | 25 |
 
 Drop the matching jar into your `mods/` folder alongside Fabric API.
+
+The `+` ranges are the declared Fabric dependency constraint, not a
+per-version test matrix — each jar is built once against its folder's own
+Yarn mappings, so versions above the pin aren't individually verified.
 
 ## Commands
 

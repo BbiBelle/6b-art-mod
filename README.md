@@ -13,14 +13,14 @@ supported Minecraft version:
 
 | Folder | Minecraft version | Fabric Loader | Java |
 | --- | --- | --- | --- |
-| [`mc1.21.5/`](mc1.21.5) | 1.21.4+ | ≥ 0.16.0 | 21 |
-| [`mc26.1.2/`](mc26.1.2) | 26.1.2+ | ≥ 0.16.0 | 25 |
+| [`mc1.21.4-1.21.11/`](mc1.21.4-1.21.11) | 1.21.4 – 1.21.11 | ≥ 0.16.0 | 21 |
+| [`mc26.1+/`](mc26.1+) | 26.1.2 and up | ≥ 0.16.0 | 25 |
 
 Drop the matching jar into your `mods/` folder alongside Fabric API.
 
-The `+` ranges are the declared Fabric dependency constraint, not a
+The ranges are the declared Fabric dependency constraint, not a
 per-version test matrix — each jar is built once against its folder's own
-Yarn mappings, so versions above the pin aren't individually verified.
+mappings, so versions past the pin aren't individually verified.
 
 ## Commands
 
@@ -59,19 +59,19 @@ both single and bulk (`/mapuploadall`) uploads.
 
 ## Repository layout
 
-This repo builds the same mod for two Minecraft versions from separate
+This repo builds the same mod for two Minecraft version ranges from separate
 Gradle projects — each one is a self-contained Fabric mod project:
 
 ```
-mc1.21.5/   # targets Minecraft 1.21.5
-mc26.1.2/   # targets Minecraft 26.1.2
+mc1.21.4-1.21.11/   # targets Minecraft 1.21.4 - 1.21.11
+mc26.1+/             # targets Minecraft 26.1.2 and up
 ```
 
 ## Building
 
 ```bash
-cd mc1.21.5   # or mc26.1.2
-./build.sh    # or: ./gradlew build
+cd mc1.21.4-1.21.11   # or mc26.1+
+./build.sh            # or: ./gradlew build
 ```
 
 The jar lands in `<folder>/build/libs/maparts-link-<version>.jar`. Gradle
@@ -80,11 +80,13 @@ resolver downloads one, or install it yourself.
 
 ## Releasing
 
-Each Minecraft version is released **independently** — its own tag, its own
-GitHub Release, its own single jar. Tags are named `<folder>-v<version>`:
+Each Minecraft version range is released **independently** — its own tag,
+its own GitHub Release, its own single jar. Tags are named
+`<folder>-v<version>`:
 
-- `mc1.21.5-v1.6.1`, `mc1.21.5-v1.6.2`, … for the `mc1.21.5/` build
-- `mc26.1.2-v1.6.1`, `mc26.1.2-v1.7.0`, … for the `mc26.1.2/` build
+- `mc1.21.4-1.21.11-v1.6.1`, `mc1.21.4-1.21.11-v1.6.2`, … for the
+  `mc1.21.4-1.21.11/` build
+- `mc26.1+-v1.6.1`, `mc26.1+-v1.7.0`, … for the `mc26.1+/` build
 
 The two variants don't need matching version numbers — bump only the one
 you're actually shipping.
@@ -94,8 +96,8 @@ you're actually shipping.
 2. Commit the version bump.
 3. Tag it (prefixed with the folder name) and push the tag:
    ```bash
-   git tag mc1.21.5-v1.6.2
-   git push origin mc1.21.5-v1.6.2
+   git tag mc1.21.4-1.21.11-v1.6.2
+   git push origin mc1.21.4-1.21.11-v1.6.2
    ```
 4. GitHub Actions (`.github/workflows/release.yml`) reads the folder name off
    the tag prefix, builds only that variant, and publishes a GitHub Release

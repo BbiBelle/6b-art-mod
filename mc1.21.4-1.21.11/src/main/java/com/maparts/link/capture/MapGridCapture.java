@@ -30,7 +30,8 @@ import net.minecraft.util.hit.EntityHitResult;
 import net.minecraft.util.math.Direction;
 
 /**
- * Captures a wall of item frames holding filled maps as one stitched image.
+ * Captures a wall or floor of item frames holding filled maps as one
+ * stitched image.
  *
  * Three entry points, all asynchronous (they hand their result to a callback
  * instead of returning it, since composing may need to wait several client
@@ -38,9 +39,10 @@ import net.minecraft.util.math.Direction;
  * flood-fills the connected rectangle around the frame under the crosshair,
  * {@link #captureCorners} takes two explicitly selected corner frames (via
  * /mapselect) and captures everything in between, and {@link #captureAll}
- * segments a whole wall of several maparts. Only wall-mounted maparts are
- * supported; floor/ceiling grids have an ambiguous "up" and are rejected with
- * a clear message.
+ * segments a whole wall of several maparts. Wall- and floor-mounted maparts
+ * are both supported; ceiling grids have an ambiguous "up" and are rejected
+ * with a clear message. For a floor grid, column runs east and row runs
+ * south, as if viewed from directly above with north at the top.
  *
  * Targets Minecraft 1.21.11 — every Minecraft call here was checked against
  * Yarn 1.21.11+build.6.
@@ -49,8 +51,6 @@ public final class MapGridCapture {
     private static final int TILE = 128;
     private static final int MAX_GRID = 64;
     private static final double SEARCH_RADIUS = 70.0;
-    // Wall frames hang with pitch 0; floor/ceiling frames use ±90.
-    private static final float MAX_WALL_PITCH_DEGREES = 45.0f;
 
     /** Vanilla metadata of one captured frame: grid cell, map ID, item name. */
     public record TileInfo(int col, int row, int mapId, String name) {}
@@ -86,36 +86,37 @@ public final class MapGridCapture {
     }
 
     /**
-     * Validates a frame as a usable wall-mounted map frame; returns an error
-     * message or null when it's fine. Only checks structural things (is it a
-     * filled map, is it wall-mounted) — the frame's actual pixel data may
-     * still be loading, which {@link #capture}/{@link #captureCorners} wait
-     * for separately before composing.
+     * Validates a frame as a usable wall- or floor-mounted map frame;
+     * returns an error message or null when it's fine. Only checks
+     * structural things (is it a filled map, is it ceiling-mounted) — the
+     * frame's actual pixel data may still be loading, which
+     * {@link #capture}/{@link #captureCorners} wait for separately before
+     * composing.
      */
     public static String validateWallFrame(MinecraftClient client, ItemFrameEntity frame) {
         if (frame == null || !holdsFilledMap(frame)) {
             return "Look at an item frame holding a filled map first.";
         }
 
-        if (Math.abs(frame.getPitch()) > MAX_WALL_PITCH_DEGREES) {
-            return "Floor and ceiling maparts aren't supported yet — hang the maps on a wall.";
+        if (frame.getHorizontalFacing() == Direction.DOWN) {
+            return "Ceiling maparts aren't supported yet — place the maps on a wall or floor.";
         }
 
         return null;
     }
 
     /**
-     * Checks that two corner frames sit on the same wall (same facing, same
-     * plane); returns an error message or null.
+     * Checks that two corner frames sit on the same wall/floor (same facing,
+     * same plane); returns an error message or null.
      */
     public static String validateSameWall(
             ItemFrameEntity first, ItemFrameEntity second) {
         if (first.getHorizontalFacing() != second.getHorizontalFacing()) {
-            return "Both corners must be on the same wall (their facing differs).";
+            return "Both corners must be on the same wall or floor (their facing differs).";
         }
 
         if (!onSamePlane(first, second, first.getHorizontalFacing())) {
-            return "Both corners must be on the same wall plane.";
+            return "Both corners must be at the same depth (wall) or level (floor).";
         }
 
         return null;
@@ -124,9 +125,20 @@ public final class MapGridCapture {
     /** Grid size implied by two opposite corner frames, as {wide, tall}. */
     public static int[] gridSize(ItemFrameEntity first, ItemFrameEntity second) {
         Direction facing = first.getHorizontalFacing();
-        Direction right = facing.getOpposite().rotateYClockwise();
-        int[] cell = cellOf(first, second, right);
+        Direction right = rightOf(facing);
+        int[] cell = cellOf(first, second, facing, right);
         return new int[] {Math.abs(cell[0]) + 1, Math.abs(cell[1]) + 1};
+    }
+
+    /**
+     * The "rightward" horizontal direction for a given attachment facing —
+     * clockwise from the facing when viewed from in front of the surface.
+     * Floor grids (facing UP) have no natural facing-relative right, so they
+     * use a fixed convention instead: east is right, matching a top-down,
+     * north-up view.
+     */
+    private static Direction rightOf(Direction facing) {
+        return facing == Direction.UP ? Direction.EAST : facing.getOpposite().rotateYClockwise();
     }
 
     /**
@@ -143,7 +155,7 @@ public final class MapGridCapture {
         }
 
         Direction facing = start.getHorizontalFacing();
-        Direction right = facing.getOpposite().rotateYClockwise();
+        Direction right = rightOf(facing);
         Map<Long, ItemFrameEntity> byCell =
                 collectCells(client, start, facing, right, SEARCH_RADIUS);
 
@@ -184,7 +196,7 @@ public final class MapGridCapture {
         }
 
         Direction facing = first.getHorizontalFacing();
-        Direction right = facing.getOpposite().rotateYClockwise();
+        Direction right = rightOf(facing);
 
         double reach = Math.abs(first.getX() - second.getX())
                 + Math.abs(first.getY() - second.getY())
@@ -192,7 +204,7 @@ public final class MapGridCapture {
         Map<Long, ItemFrameEntity> byCell =
                 collectCells(client, first, facing, right, reach);
 
-        int[] cornerCell = cellOf(first, second, right);
+        int[] cornerCell = cellOf(first, second, facing, right);
         int minCol = Math.min(0, cornerCell[0]);
         int maxCol = Math.max(0, cornerCell[0]);
         int minRow = Math.min(0, cornerCell[1]);
@@ -259,7 +271,7 @@ public final class MapGridCapture {
         }
 
         Direction facing = start.getHorizontalFacing();
-        Direction right = facing.getOpposite().rotateYClockwise();
+        Direction right = rightOf(facing);
         Map<Long, ItemFrameEntity> byCell =
                 collectCells(client, start, facing, right, SEARCH_RADIUS);
 
@@ -601,14 +613,13 @@ public final class MapGridCapture {
                 ItemFrameEntity.class,
                 base.getBoundingBox().expand(radius),
                 frame -> frame.getHorizontalFacing() == facing
-                        && Math.abs(frame.getPitch()) <= MAX_WALL_PITCH_DEGREES
                         && holdsFilledMap(frame)
                         && onSamePlane(base, frame, facing));
 
         Map<Long, ItemFrameEntity> byCell = new HashMap<>();
 
         for (ItemFrameEntity frame : candidates) {
-            int[] cell = cellOf(base, frame, right);
+            int[] cell = cellOf(base, frame, facing, right);
             byCell.put(cellKey(cell[0], cell[1]), frame);
         }
 
@@ -661,12 +672,27 @@ public final class MapGridCapture {
         return new int[] {minCol, maxCol, minRow, maxRow};
     }
 
-    /** Grid cell of a frame relative to a base frame: {col right, row down}. */
+    /**
+     * Grid cell of a frame relative to a base frame: {col right, row down}.
+     * Wall grids use the wall's own vertical axis for row; floor grids
+     * (facing UP) have no vertical axis in-plane, so row instead runs along
+     * "right" rotated a further quarter-turn — south, under the fixed
+     * east-is-right convention {@link #rightOf} uses for floors.
+     */
     private static int[] cellOf(
-            ItemFrameEntity base, ItemFrameEntity frame, Direction right) {
+            ItemFrameEntity base, ItemFrameEntity frame, Direction facing, Direction right) {
         int col = (int) Math.round(
                 (frame.getX() - base.getX()) * right.getOffsetX()
                         + (frame.getZ() - base.getZ()) * right.getOffsetZ());
+
+        if (facing == Direction.UP) {
+            Direction down = right.rotateYClockwise();
+            int row = (int) Math.round(
+                    (frame.getX() - base.getX()) * down.getOffsetX()
+                            + (frame.getZ() - base.getZ()) * down.getOffsetZ());
+            return new int[] {col, row};
+        }
+
         int row = (int) Math.round(base.getY() - frame.getY());
         return new int[] {col, row};
     }
@@ -675,8 +701,14 @@ public final class MapGridCapture {
         return ((long) col << 32) | (row & 0xFFFFFFFFL);
     }
 
+    /** Wall frames share a plane when equidistant from the wall; floor
+     * frames share a plane when they're at the same Y level. */
     private static boolean onSamePlane(
             ItemFrameEntity base, ItemFrameEntity other, Direction facing) {
+        if (facing == Direction.UP) {
+            return Math.abs(other.getY() - base.getY()) < 0.01;
+        }
+
         double delta = (other.getX() - base.getX()) * facing.getOffsetX()
                 + (other.getZ() - base.getZ()) * facing.getOffsetZ();
         return Math.abs(delta) < 0.01;

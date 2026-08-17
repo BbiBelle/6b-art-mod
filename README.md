@@ -27,13 +27,23 @@ mappings, so versions past the pin aren't individually verified.
 | Command | What it does |
 | --- | --- |
 | `/maplink <code>` | Confirms a sign-in code from the website's login page. First use creates your account; it also stores an upload token in `config/maparts-link.token` so you stay linked. |
-| `/mapupload [title]` | Uploads the mapart wall under your crosshair as a draft (flood-fills the full rectangle). Without a title, one is guessed from the maps' custom item names ("Sunset (3/6)" → "Sunset"). |
+| `/mapupload [title]` | Uploads the mapart wall or floor under your crosshair as a draft (flood-fills the full rectangle). Without a title, one is guessed from the maps' custom item names ("Sunset (3/6)" → "Sunset"). |
 | `/mapselect` | Two-corner selection: run it looking at one corner frame, then at the opposite corner (the same frame twice = a 1x1), then `/mapupload`. |
 | `/mapuploadall` | Splits a wall holding several maparts into separate arts automatically — matching map names group first, unnamed neighbors stay together only when the image continues across the frame seam — and uploads each as its own draft (≤12 per run; irregular groups are skipped with a note). |
 
+Wall- and floor-mounted item frames are both supported (ceiling frames
+aren't — an "up" grid has no clear top edge to read the image from). For a
+floor grid, column runs east and row runs south, as if viewed from directly
+above with north at the top.
+
 Trade proposals ping you in chat: a summary shortly after joining and a
-notification when a new one arrives (60s poll), with clickable links to the
-site.
+notification when a new one arrives, rate-limited to at most once a minute,
+with clickable links to the site.
+
+The mod checks for a newer release on the title screen. If one's available,
+it asks before installing anything — accepting downloads and swaps in the
+new jar (effective after restarting Minecraft); declining just dismisses the
+prompt for that launch.
 
 ## Uploads, exactly
 

@@ -19,10 +19,16 @@ import net.minecraft.util.Formatting;
 public final class TradeNotifier {
     private static final int POLL_TICKS = 20 * 60;
     private static final int JOIN_DELAY_TICKS = 20 * 5;
+    // Wall-clock floor beneath the tick-based schedule above: it caps the
+    // steady-state cadence, but a rejoin resets ticksUntilCheck to
+    // JOIN_DELAY_TICKS regardless of when the last check ran, so repeated
+    // rejoins alone could otherwise call the API faster than once a minute.
+    private static final long MIN_CHECK_INTERVAL_MILLIS = 60_000;
 
     private static int ticksUntilCheck = -1;
     private static int lastPending = -1;
     private static boolean checking = false;
+    private static long lastCheckMillis = 0;
 
     private TradeNotifier() {}
 
@@ -52,12 +58,19 @@ public final class TradeNotifier {
             return;
         }
 
+        long now = System.currentTimeMillis();
+
+        if (now - lastCheckMillis < MIN_CHECK_INTERVAL_MILLIS) {
+            return;
+        }
+
         String token = TokenStore.load();
 
         if (token == null) {
             return;
         }
 
+        lastCheckMillis = now;
         checking = true;
 
         new BackendClient(LinkCommand.BACKEND_URL)

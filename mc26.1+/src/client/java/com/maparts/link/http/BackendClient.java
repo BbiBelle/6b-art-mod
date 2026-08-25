@@ -106,8 +106,6 @@ public final class BackendClient {
             boolean success, String message, String mapartId,
             boolean owned, boolean alreadyOwned) {}
 
-    public record PendingResult(int pending, String latestFrom) {}
-
     /**
      * Confirms a website-issued challenge code as the given username. The
      * backend derives the offline-mode UUID from the name itself, so the name
@@ -342,32 +340,6 @@ public final class BackendClient {
                 })
                 .exceptionally(error -> new FinalizeResult(false,
                         "Could not reach the Maparts website.", null, false, false));
-    }
-
-    /** Polls how many trade proposals are waiting for this account. */
-    public CompletableFuture<PendingResult> pendingTrades(String token) {
-        HttpRequest request = jsonRequest("/api/trades/pending", token)
-                .GET()
-                .build();
-
-        return httpClient
-                .sendAsync(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8))
-                .thenApply(response -> {
-                    JsonObject json = parseJsonObject(response.body());
-
-                    if (json == null || !json.has("ok") || !json.get("ok").getAsBoolean()
-                            || !json.has("data")) {
-                        return null;
-                    }
-
-                    JsonObject data = json.getAsJsonObject("data");
-                    int pending = data.has("pending") ? data.get("pending").getAsInt() : 0;
-                    String latestFrom = data.has("latestFrom") && !data.get("latestFrom").isJsonNull()
-                            ? data.get("latestFrom").getAsString()
-                            : null;
-                    return new PendingResult(pending, latestFrom);
-                })
-                .exceptionally(error -> null);
     }
 
     private HttpRequest.Builder jsonRequest(String path, String bearerToken) {

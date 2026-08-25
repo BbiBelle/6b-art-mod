@@ -567,7 +567,15 @@ public final class MapGridCapture {
                 return Result.error("A map unloaded mid-capture. Try again.");
             }
 
-            drawTile(image, col * TILE, row * TILE, state, frame.getRotation() % 4);
+            int rotation = frame.getRotation() % 4;
+
+            if (rotation != 0) {
+                return Result.error(
+                        "This mapart has a rotated map tile — right-click each frame"
+                                + " until it faces upright, then try again.");
+            }
+
+            drawTile(image, col * TILE, row * TILE, state, rotation);
             tiles.add(tileInfo(frame, col, row));
         }
 

@@ -16,7 +16,7 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
  * truncating the wall or fragmenting one mapart into several. Waiting here
  * (rather than sampling once) is what avoids losing those pieces.
  *
- * Registered once at mod init, like TradeNotifier: Fabric's event bus has no
+ * Registered once at mod init, like UpdatePrompt: Fabric's event bus has no
  * listener-removal API, so a persistent single-slot poller (rather than one
  * registration per capture attempt) is the correct shape.
  */

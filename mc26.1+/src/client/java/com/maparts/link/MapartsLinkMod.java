@@ -5,7 +5,6 @@ import com.maparts.link.command.LinkCommand;
 import com.maparts.link.command.MapSelectCommand;
 import com.maparts.link.command.MapUploadAllCommand;
 import com.maparts.link.command.MapUploadCommand;
-import com.maparts.link.notify.TradeNotifier;
 import com.maparts.link.update.UpdatePrompt;
 
 import net.fabricmc.api.ClientModInitializer;
@@ -22,7 +21,6 @@ public final class MapartsLinkMod implements ClientModInitializer {
                     MapUploadAllCommand.register(dispatcher);
                 });
 
-        TradeNotifier.init();
         FrameDataWaiter.init();
         UpdatePrompt.init();
     }

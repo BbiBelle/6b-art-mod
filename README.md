@@ -36,10 +36,6 @@ aren't — an "up" grid has no clear top edge to read the image from). For a
 floor grid, column runs east and row runs south, as if viewed from directly
 above with north at the top.
 
-Trade proposals ping you in chat: a summary shortly after joining and a
-notification when a new one arrives, rate-limited to at most once a minute,
-with clickable links to the site.
-
 The mod checks for a newer release on the title screen. If one's available,
 it asks before installing anything — accepting downloads and swaps in the
 new jar (effective after restarting Minecraft); declining just dismisses the

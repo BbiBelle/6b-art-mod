@@ -1,8 +1,12 @@
-# Maparts Link — Minecraft 1.21.4 – 1.21.11 build
+# Maparts Link — Minecraft 1.21.5 – 1.21.11 build
 
 See the [repo root README](../README.md) for commands, upload behavior, and
 the release process. This folder is the Fabric mod project targeting
-Minecraft **1.21.4 through 1.21.11**, built and verified against **1.21.5**.
+Minecraft **1.21.5 through 1.21.11**, built and verified against **1.21.5**.
+
+Minecraft **1.21.4** has its own build in [`../mc1.21.4/`](../mc1.21.4) —
+1.21.5 reworked `ClickEvent` into sealed per-action records, so the chat-link
+code here does not compile or run against 1.21.4.
 
 ## Requirements
 

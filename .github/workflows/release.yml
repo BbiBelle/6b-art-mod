@@ -1,6 +1,6 @@
 name: Release
 
-# Tags are per-variant: <variant-dir>-v<version>, e.g. mc1.21.4-1.21.11-v1.6.1
+# Tags are per-variant: <variant-dir>-v<version>, e.g. mc1.21.5-1.21.11-v1.6.1
 # or mc26.1+-v1.6.2. Each push builds and releases ONLY that one variant.
 on:
   push:
@@ -29,7 +29,8 @@ jobs:
             exit 1
           fi
           case "$dir" in
-            mc1.21.4-1.21.11) java=21 ;;
+            mc1.21.4) java=21 ;;
+            mc1.21.5-1.21.11) java=21 ;;
             mc26.1+) java=25 ;;
             *)
               echo "No Java version configured for variant directory: $dir" >&2

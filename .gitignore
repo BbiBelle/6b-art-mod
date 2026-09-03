@@ -13,7 +13,7 @@ out/
 # a public commit.
 run/
 
-# Claude Code local settings
+# Local tool + editor settings
 .claude/
 
 # OS / editor junk

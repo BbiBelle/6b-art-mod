@@ -13,8 +13,12 @@ supported Minecraft version:
 
 | Folder | Minecraft version | Fabric Loader | Java |
 | --- | --- | --- | --- |
-| [`mc1.21.4-1.21.11/`](mc1.21.4-1.21.11) | 1.21.4 – 1.21.11 | ≥ 0.16.0 | 21 |
+| [`mc1.21.4/`](mc1.21.4) | 1.21.4 only | ≥ 0.16.0 | 21 |
+| [`mc1.21.5-1.21.11/`](mc1.21.5-1.21.11) | 1.21.5 – 1.21.11 | ≥ 0.16.0 | 21 |
 | [`mc26.1+/`](mc26.1+) | 26.1.2 and up | ≥ 0.16.0 | 25 |
+
+1.21.4 gets its own jar because 1.21.5 reworked `ClickEvent` into sealed
+per-action records — the chat-link code can't span both, so it's two builds.
 
 Drop the matching jar into your `mods/` folder alongside Fabric API.
 
@@ -65,18 +69,23 @@ both single and bulk (`/mapuploadall`) uploads.
 
 ## Repository layout
 
-This repo builds the same mod for two Minecraft version ranges from separate
+This repo builds the same mod for three Minecraft version ranges from separate
 Gradle projects — each one is a self-contained Fabric mod project:
 
 ```
-mc1.21.4-1.21.11/   # targets Minecraft 1.21.4 - 1.21.11
-mc26.1+/             # targets Minecraft 26.1.2 and up
+mc1.21.4/           # targets Minecraft 1.21.4 only
+mc1.21.5-1.21.11/   # targets Minecraft 1.21.5 - 1.21.11
+mc26.1+/            # targets Minecraft 26.1.2 and up
 ```
+
+`mc1.21.4/` and `mc1.21.5-1.21.11/` are the same mod against different
+`ClickEvent` APIs (1.21.5 made it sealed per-action records); keep their
+shared sources in sync.
 
 ## Building
 
 ```bash
-cd mc1.21.4-1.21.11   # or mc26.1+
+cd mc1.21.5-1.21.11   # or mc1.21.4, or mc26.1+
 ./build.sh            # or: ./gradlew build
 ```
 
@@ -90,11 +99,12 @@ Each Minecraft version range is released **independently** — its own tag,
 its own GitHub Release, its own single jar. Tags are named
 `<folder>-v<version>`:
 
-- `mc1.21.4-1.21.11-v1.6.1`, `mc1.21.4-1.21.11-v1.6.2`, … for the
-  `mc1.21.4-1.21.11/` build
+- `mc1.21.4-v1.6.1`, `mc1.21.4-v1.6.2`, … for the `mc1.21.4/` build
+- `mc1.21.5-1.21.11-v1.6.1`, `mc1.21.5-1.21.11-v1.6.2`, … for the
+  `mc1.21.5-1.21.11/` build
 - `mc26.1+-v1.6.1`, `mc26.1+-v1.7.0`, … for the `mc26.1+/` build
 
-The two variants don't need matching version numbers — bump only the one
+The variants don't need matching version numbers — bump only the one
 you're actually shipping.
 
 1. Bump `version` in that folder's `build.gradle` and its
@@ -102,8 +112,8 @@ you're actually shipping.
 2. Commit the version bump.
 3. Tag it (prefixed with the folder name) and push the tag:
    ```bash
-   git tag mc1.21.4-1.21.11-v1.6.2
-   git push origin mc1.21.4-1.21.11-v1.6.2
+   git tag mc1.21.5-1.21.11-v1.6.2
+   git push origin mc1.21.5-1.21.11-v1.6.2
    ```
 4. GitHub Actions (`.github/workflows/release.yml`) reads the folder name off
    the tag prefix, builds only that variant, and publishes a GitHub Release

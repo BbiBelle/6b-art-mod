@@ -16,13 +16,13 @@ import java.util.concurrent.CompletableFuture;
 
 /**
  * Looks up the newest GitHub release for this mod variant. Releases in this
- * repo are tagged per-variant (e.g. "mc1.21.4-1.21.11-v1.9.0"), so the tag
+ * repo are tagged per-variant (e.g. "mc1.21.5-1.21.11-v1.9.0"), so the tag
  * prefix below is what pins this check to the right variant's release
  * history even though every variant shares one repo.
  */
 public final class UpdateChecker {
     private static final String REPO = "BbiBelle/6b-art-mod";
-    private static final String TAG_PREFIX = "mc1.21.4-1.21.11-v";
+    private static final String TAG_PREFIX = "mc1.21.5-1.21.11-v";
     private static final Duration TIMEOUT = Duration.ofSeconds(10);
 
     public record UpdateInfo(String version, String downloadUrl, String releaseUrl) {}

@@ -120,3 +120,4 @@ you're actually shipping.
    for that tag with just its one jar attached — release notes are generated
    from the commits touching that folder since its own last release, so
    changes to the other variant never show up in the wrong changelog.
+   .
